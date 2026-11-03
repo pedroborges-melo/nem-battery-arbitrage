@@ -45,11 +45,7 @@ def load_prices(region: str, start: str, end: str, freq: str = "30min") -> pd.Da
     frames = [pd.read_csv(download_month(region, p.year, p.month)) for p in months]
     df = pd.concat(frames, ignore_index=True)
     df["ts"] = pd.to_datetime(df["SETTLEMENTDATE"], format="%Y/%m/%d %H:%M:%S")
-    df = (
-        df.rename(columns={"RRP": "rrp", "TOTALDEMAND": "demand"})
-        .set_index("ts")[["rrp", "demand"]]
-        .sort_index()
-    )
+    df = df.rename(columns={"RRP": "rrp", "TOTALDEMAND": "demand"}).set_index("ts")[["rrp", "demand"]].sort_index()
     df = df[~df.index.duplicated()]
     out = df.resample(freq, label="right", closed="right").mean()
     return out.loc[(out.index > pd.Timestamp(start)) & (out.index <= pd.Timestamp(end))]

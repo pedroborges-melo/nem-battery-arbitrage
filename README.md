@@ -50,5 +50,5 @@ Over the year, lower MAE goes with higher revenue. In June 2024 the order flips:
 
 ```bash
 uv sync
-uv run python scripts/run_baseline.py --region SA1 --start 2024-01-01 --end 2025-01-01
+uv run python scripts/run_backtest.py --region SA1 --start 2024-01-01 --end 2025-01-01
 ```

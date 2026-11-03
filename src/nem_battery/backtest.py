@@ -6,12 +6,14 @@ batteries rebid every 5 minutes, so these numbers understate what they capture.
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
 
 from .battery import Battery, schedule, settle
+
+DEFAULT_BATTERY = Battery()
 
 # A forecaster sees prices strictly before `day` and returns one value per interval of `day`.
 Forecaster = Callable[[pd.Series, pd.Timestamp, int], np.ndarray]
@@ -53,7 +55,7 @@ def run(
     prices: pd.Series,
     days: pd.DatetimeIndex,
     forecasters: dict[str, Forecaster] = FORECASTERS,
-    battery: Battery = Battery(),
+    battery: Battery = DEFAULT_BATTERY,
     dt_hours: float = 0.5,
 ) -> pd.DataFrame:
     """One row per (day, forecaster): forecast error and settled revenue."""

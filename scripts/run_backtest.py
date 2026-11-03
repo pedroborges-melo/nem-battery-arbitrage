@@ -1,6 +1,6 @@
-"""Baseline backtest: naive forecasts vs perfect foresight for one region.
+"""Day-ahead backtest for one region: naive baselines, MSTL and LightGBM vs perfect foresight.
 
-Usage: uv run python scripts/run_baseline.py --region SA1 --start 2024-01-01 --end 2025-01-01
+Usage: uv run python scripts/run_backtest.py --region SA1 --start 2024-01-01 --end 2025-01-01
 """
 
 from __future__ import annotations
@@ -11,10 +11,13 @@ from pathlib import Path
 
 import pandas as pd
 
-from nem_battery.backtest import run, summarise
+from nem_battery.backtest import FORECASTERS, run, summarise
 from nem_battery.data import load_prices
+from nem_battery.forecasters import GradientBoosting, SeasonalForecast
 
 REPORTS = Path(__file__).resolve().parents[1] / "reports"
+# LightGBM's first fit trains on this much history; the lag features need 7 more days.
+TRAINING_HISTORY = pd.DateOffset(years=1, days=8)
 
 
 def main() -> None:
@@ -24,13 +27,13 @@ def main() -> None:
     ap.add_argument("--end", default="2025-01-01")
     args = ap.parse_args()
 
-    # Load 8 extra days of history so the first backtest day has its lookback window.
-    history_start = (pd.Timestamp(args.start) - pd.Timedelta(days=8)).strftime("%Y-%m-%d")
-    prices = load_prices(args.region, history_start, args.end)["rrp"]
+    history_start = (pd.Timestamp(args.start) - TRAINING_HISTORY).strftime("%Y-%m-%d")
+    data = load_prices(args.region, history_start, args.end)
     days = pd.date_range(args.start, pd.Timestamp(args.end) - pd.Timedelta(days=1), freq="D")
+    forecasters = {**FORECASTERS, "mstl": SeasonalForecast(), "lightgbm": GradientBoosting(data)}
 
     t0 = time.perf_counter()
-    results = run(prices, days)
+    results = run(data["rrp"], days, forecasters)
     elapsed = time.perf_counter() - t0
 
     REPORTS.mkdir(exist_ok=True)
@@ -41,7 +44,7 @@ def main() -> None:
 
     pd.set_option("display.float_format", lambda x: f"{x:,.2f}")
     print(summary)
-    print(f"\n{len(results)} optimisations in {elapsed:.1f}s")
+    print(f"\n{len(results)} forecasts and optimisations in {elapsed:.0f}s")
 
 
 if __name__ == "__main__":

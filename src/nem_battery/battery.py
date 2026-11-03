@@ -39,8 +39,7 @@ def schedule(prices: np.ndarray, battery: Battery, dt_hours: float = 0.5) -> pd.
     mode = pulp.LpVariable.dicts("charging", range(n), cat="Binary")
 
     prob += pulp.lpSum(
-        float(prices[t]) * (d[t] - c[t]) * dt_hours - b.degradation_aud_per_mwh * d[t] * dt_hours
-        for t in range(n)
+        float(prices[t]) * (d[t] - c[t]) * dt_hours - b.degradation_aud_per_mwh * d[t] * dt_hours for t in range(n)
     )
     for t in range(n):
         prev = soc0 if t == 0 else soc[t - 1]
