@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from nem_battery.backtest import FORECASTERS, _day, naive_yesterday, run, summarise
+from nem_battery.backtest import FORECASTERS, _day, evaluate, forecast, naive_yesterday, run, summarise
 
 
 def test_day_takes_intervals_ending_after_midnight_through_the_next_midnight(market):
@@ -32,3 +32,12 @@ def test_incomplete_days_are_skipped(market):
     prices = market["rrp"].drop(market.index[(market.index > "2024-01-12") & (market.index <= "2024-01-12 06:00")])
     days = pd.date_range("2024-01-11", "2024-01-13")
     assert set(run(prices, days, {"yesterday": naive_yesterday})["day"]) == {pd.Timestamp("2024-01-11")}
+
+
+def test_forecast_then_evaluate_keeps_one_row_per_day_and_method(market):
+    days = pd.date_range("2024-01-10", "2024-01-12")
+    forecasts = forecast(market["rrp"], days)
+    assert forecasts.shape == (3 * len(FORECASTERS), 48)
+    results = evaluate(forecasts, market["rrp"])
+    perfect = results[results["forecaster"] == "perfect_foresight"]
+    assert (perfect["mae"] == 0).all() and (perfect["peak_hits"] == 1).all() and (perfect["rank_corr"] == 1).all()

@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from .battery import Battery, schedule, settle
+from .metrics import scores
 
 DEFAULT_BATTERY = Battery()
 
@@ -51,6 +52,47 @@ def _day(prices: pd.Series, day: pd.Timestamp) -> pd.Series:
     return prices.loc[(prices.index > day) & (prices.index <= day + pd.Timedelta(days=1))]
 
 
+def forecast(
+    prices: pd.Series, days: pd.DatetimeIndex, forecasters: dict[str, Forecaster] = FORECASTERS, n: int = 48
+) -> pd.DataFrame:
+    """Every forecaster's forecast for every complete day: one row per (day, forecaster), one column per interval.
+
+    Days with gaps in the source data, and forecasts a method could not make, are left out.
+    """
+    rows = {}
+    for day in days:
+        if len(_day(prices, day)) != n:
+            continue
+        for name, forecaster in forecasters.items():
+            fc = forecaster(prices, day, n)
+            if len(fc) == n and not np.isnan(fc).any():
+                rows[(day, name)] = fc
+    out = pd.DataFrame.from_dict(rows, orient="index")
+    out.index = pd.MultiIndex.from_tuples(out.index, names=["day", "forecaster"])
+    return out
+
+
+def evaluate(
+    forecasts: pd.DataFrame, prices: pd.Series, battery: Battery = DEFAULT_BATTERY, dt_hours: float = 0.5
+) -> pd.DataFrame:
+    """One row per (day, forecaster): the forecast's scores and the revenue of the plan made on it."""
+    k = round(battery.energy_mwh / battery.power_mw / dt_hours)  # intervals in a full discharge
+    rows = []
+    for (day, name), fc in forecasts.iterrows():
+        actual = _day(prices, day).to_numpy()
+        plan = schedule(fc.to_numpy(), battery, dt_hours)
+        rows.append(
+            {
+                "day": day,
+                "forecaster": name,
+                **scores(fc.to_numpy(), actual, k),
+                "revenue_aud": settle(plan, actual, battery, dt_hours),
+                "mwh_discharged": float(plan["discharge_mw"].sum() * dt_hours),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def run(
     prices: pd.Series,
     days: pd.DatetimeIndex,
@@ -58,28 +100,9 @@ def run(
     battery: Battery = DEFAULT_BATTERY,
     dt_hours: float = 0.5,
 ) -> pd.DataFrame:
-    """One row per (day, forecaster): forecast error and settled revenue."""
-    rows = []
-    for day in days:
-        actual = _day(prices, day).to_numpy()
-        n = len(actual)
-        if n != round(24 / dt_hours):
-            continue  # incomplete day in the source data
-        for name, forecaster in forecasters.items():
-            fc = forecaster(prices, day, n)
-            if len(fc) != n or np.isnan(fc).any():
-                continue
-            plan = schedule(fc, battery, dt_hours)
-            rows.append(
-                {
-                    "day": day,
-                    "forecaster": name,
-                    "mae": float(np.abs(fc - actual).mean()),
-                    "revenue_aud": settle(plan, actual, battery, dt_hours),
-                    "mwh_discharged": float(plan["discharge_mw"].sum() * dt_hours),
-                }
-            )
-    return pd.DataFrame(rows)
+    """Forecast, then evaluate: one row per (day, forecaster)."""
+    n = round(24 / dt_hours)
+    return evaluate(forecast(prices, days, forecasters, n), prices, battery, dt_hours)
 
 
 def summarise(results: pd.DataFrame) -> pd.DataFrame:

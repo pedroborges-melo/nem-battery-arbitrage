@@ -56,19 +56,45 @@ Over the whole year, the most accurate forecast also earns the most. Month by mo
 
 MSTL shows the same gap from the other side. Its first version added the weekly cycle half-hour by half-hour, and with only eight weeks of data that shape was mostly noise. The optimizer traded on the noise, and in June 2024 it captured almost nothing. Keeping only the weekly cycle's daily level raised its capture rate to 19% that month, while its error improved by only 10 AUD/MWh. A small change in accuracy was a large change in money, because the battery cares about when the price peaks and troughs, not about the average miss.
 
+## What the battery needs from a forecast
+
+If the average error is not what earns money, what is? A battery charges in a few cheap half-hours and discharges in a few dear ones, so it needs the day's shape more than the level of each price. I scored every daily forecast in four more ways:
+
+- **Shape:** the rank correlation between the forecast and the actual prices within the day, which asks whether the forecast puts the half-hours in the right order.
+- **Peak hits and trough hits:** the share of the day's four dearest (or cheapest) half-hours that the forecast also picks. Four half-hours are what the battery needs for one full discharge.
+- **Spread error:** how far the forecast's gap between the dearest and the cheapest half-hours is from the actual gap.
+
+Then, for each day, I ranked the five methods by each score and compared that ranking with their ranking by revenue.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="figures/score_agreement-dark.png">
+  <img alt="Mean daily rank correlation with revenue for each score. Shape scores 0.51, peak and trough hits 0.43, peak hits 0.35, mean absolute error 0.33, trough hits 0.31 and spread error 0.06." src="figures/score_agreement-light.png">
+</picture>
+
+The shape is the best guide: its ranking agrees with the revenue ranking at 0.51 on an average day, against 0.33 for MAE. Since both are measured on the same days, the gap of 0.19 can be tested directly, and its 95% interval runs from 0.13 to 0.24. Hitting both the peaks and the troughs comes second, at 0.43. Peaks or troughs alone are no better than MAE, and the spread error says almost nothing, because a forecast can get the size of the gap right while putting it at the wrong time.
+
+Month by month, however, no score does better than MAE: the shape, the combined hits and MAE each pick the top earner in six months out of twelve. Twelve months are too few to tell them apart, so the case for the shape rests on the daily comparison.
+
+The practical lesson is that a forecast for a battery should be chosen, and could be trained, on how well it orders the hours of each day, not only on its average error.
+
 ## Limitations
 
 - **Day-ahead plan:** the plan is fixed a day ahead. Real batteries rebid every five minutes, so these figures are a floor.
 - **No ancillary services:** frequency-control (FCAS) revenue is excluded.
 - **Price taker:** the battery does not move the price.
+- **One cycle a day in the scores:** peak and trough hits look at the four dearest and cheapest half-hours, which is one full cycle; on some days the optimizer cycles twice.
+- **One region and one year:** all results are for South Australia in 2024.
 
 ## Reproduce
 
 ```bash
 uv sync
 uv run python scripts/run_backtest.py --region SA1 --start 2024-01-01 --end 2025-01-01  # about 50 minutes
+uv run python scripts/compare_metrics.py
 uv run python scripts/make_figures.py
 ```
+
+The forecasts are saved to `data/processed/`. To re-run the optimization alone, for example after changing the battery, add `--reuse-forecasts` to `run_backtest.py`; it then takes about a minute.
 
 The checks that run in CI:
 
