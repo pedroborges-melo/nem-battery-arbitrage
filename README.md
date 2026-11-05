@@ -25,6 +25,11 @@ subject to state-of-charge dynamics $s_t = s_{t-1} + \eta_c c_t \Delta t - d_t \
 
 A binary mode variable stops the battery from charging and discharging in the same interval. Without it, a linear program would do exactly that whenever prices go negative, which they often do in South Australia: it would burn energy through conversion losses to be paid for consuming. The battery is 100 MW / 200 MWh with ~85% round-trip efficiency.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="figures/battery_day-dark.png">
+  <img alt="South Australian prices on 25 December 2024, negative from 06:00 to 16:30 and peaking at 201 AUD/MWh at 19:30, above the perfect-foresight plan: the battery charges in a few negative-price half-hours in the morning and at midday and discharges between 18:00 and 20:30." src="figures/battery_day-light.png">
+</picture>
+
 ## Backtest
 
 For each day $D$:
@@ -60,7 +65,14 @@ MSTL shows the same gap from the other side. Its first version added the weekly 
 
 ## What the battery needs from a forecast
 
-If the average error is not what earns money, what is? A battery charges in a few cheap half-hours and discharges in a few dear ones, so it needs the day's shape more than the level of each price. I scored every daily forecast in four more ways:
+If the average error is not what earns money, what is? A battery charges in a few cheap half-hours and discharges in a few dear ones, so it needs the day's shape more than the level of each price. On 24 June 2024, for example, the same day of the previous week missed by 93 AUD/MWh on average and LightGBM by 61, yet LightGBM's plan bought into a price spike at 14:30 and earned AUD 28,700, against 47,800 for the less accurate forecast.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="figures/two_forecasts-dark.png">
+  <img alt="Actual South Australian prices on 24 June 2024 with two day-ahead forecasts, the same day last week (error 93, earned AUD 47,800) and LightGBM (error 61, earned AUD 28,700), above the plan each forecast led to. LightGBM's plan buys at 14:30, when the price spiked to 355 AUD/MWh." src="figures/two_forecasts-light.png">
+</picture>
+
+I scored every daily forecast in four more ways:
 
 - **Shape:** the rank correlation between the forecast and the actual prices within the day, which asks whether the forecast puts the half-hours in the right order.
 - **Peak hits and trough hits:** the share of the day's four dearest (or cheapest) half-hours that the forecast also picks. Four half-hours are what the battery needs for one full discharge.
