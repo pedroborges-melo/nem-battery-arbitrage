@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from nem_battery import data
+from nem_battery.data import trading_day
 
 
 @pytest.fixture
@@ -29,6 +31,20 @@ def test_load_prices_averages_to_half_hours_labelled_by_interval_end(fake_month)
     assert len(prices) == 48
     assert prices.index[0] == pd.Timestamp("2024-01-01 00:30") and prices.index[-1] == pd.Timestamp("2024-01-02")
     assert (prices["rrp"] == 2.5).all() and (prices["demand"] == 1000).all()
+
+
+def test_a_trading_day_runs_from_00_30_to_midnight(market):
+    day = pd.Timestamp("2024-01-10")
+    on_day = market["rrp"][trading_day(market.index) == day]
+    assert len(on_day) == 48
+    assert on_day.index[0] == day + pd.Timedelta("30min") and on_day.index[-1] == day + pd.Timedelta(days=1)
+    np.testing.assert_array_equal(data.prices_on(market["rrp"], day), on_day.to_numpy())
+
+
+def test_a_day_is_complete_only_with_48_values_and_none_missing():
+    assert data.is_complete(np.ones(48))
+    assert not data.is_complete(np.ones(47))
+    assert not data.is_complete(np.r_[np.ones(47), np.nan])
 
 
 def test_unknown_region_is_rejected():

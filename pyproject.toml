@@ -5,6 +5,9 @@ description = "How much is a price forecast worth? Battery arbitrage in Australi
 requires-python = ">=3.11"
 dependencies = ["pandas>=2.2", "numpy>=1.26", "pulp>=2.8,<4", "requests>=2.31", "matplotlib>=3.8", "lightgbm>=4.5", "statsmodels>=0.14"]
 
+[project.scripts]
+nem-battery = "nem_battery.cli:main"
+
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
 

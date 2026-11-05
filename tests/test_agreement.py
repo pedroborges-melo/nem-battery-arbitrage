@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from nem_battery.agreement import agreement, methods_only
+from nem_battery.agreement import agreement, oriented
 
 
 def results(days: int = 40) -> pd.DataFrame:
@@ -20,10 +20,11 @@ def results(days: int = 40) -> pd.DataFrame:
                 "rank_corr": revenue[i] / 4000,  # perfectly aligned with revenue
                 "mae": 100 - revenue[i] / 100,  # lower error earns more: aligned once flipped
                 "spread_error": float(noise[i]),  # unrelated to revenue
-                "trough_hits": 0.5, "peak_hits": 0.5,  # tied every day: no correlation
+                "trough_hits": 0.5, "peak_hits": 0.5, "extreme_hits": 0.5,  # tied every day: no correlation
             })  # fmt: skip
         rows.append({"day": day, "forecaster": "perfect_foresight", "revenue_aud": 1e6, "rank_corr": 1.0,
-                     "mae": 0.0, "spread_error": 0.0, "trough_hits": 1.0, "peak_hits": 1.0})  # fmt: skip
+                     "mae": 0.0, "spread_error": 0.0, "trough_hits": 1.0, "peak_hits": 1.0,
+                     "extreme_hits": 1.0})  # fmt: skip
     return pd.DataFrame(rows)
 
 
@@ -46,5 +47,7 @@ def test_an_aligned_score_picks_the_top_earner_every_month():
     assert table.loc["rank_corr", "months_top_earner"] == 2
 
 
-def test_perfect_foresight_is_left_out():
-    assert set(methods_only(results())["forecaster"]) == {"a", "b", "c", "d"}
+def test_perfect_foresight_is_left_out_and_lower_is_better_scores_are_flipped():
+    scored = oriented(results())
+    assert set(scored["forecaster"]) == {"a", "b", "c", "d"}
+    assert (scored["mae"] <= 0).all()

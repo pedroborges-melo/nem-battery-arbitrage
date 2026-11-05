@@ -41,12 +41,13 @@ def spread(prices: np.ndarray, k: int) -> float:
 
 
 def scores(forecast: np.ndarray, actual: np.ndarray, k: int) -> dict[str, float]:
-    """All of a day's forecast scores, keyed by column name."""
+    """All of a day's forecast scores, keyed by column name. `k` is the battery's duration in intervals."""
     trough_hits, peak_hits = hit_rates(forecast, actual, k)
     return {
         "mae": mae(forecast, actual),
         "rank_corr": rank_correlation(forecast, actual),
         "trough_hits": trough_hits,
         "peak_hits": peak_hits,
+        "extreme_hits": (trough_hits + peak_hits) / 2,
         "spread_error": abs(spread(forecast, k) - spread(actual, k)),
     }

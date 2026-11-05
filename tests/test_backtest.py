@@ -4,46 +4,42 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from nem_battery.backtest import FORECASTERS, _day, evaluate, forecast, load_forecasts, naive_yesterday, run, summarise
+from nem_battery.backtest import evaluate, forecast, load_forecasts, summarise
+from nem_battery.battery import Battery
+from nem_battery.forecasters import PERFECT, naive_last_week, naive_yesterday, perfect_foresight, profile_7d_median
+
+# The models need more history than the synthetic data has, so the backtest is tested with the naive methods.
+NAIVE = {
+    PERFECT: perfect_foresight,
+    "naive_yesterday": naive_yesterday,
+    "naive_last_week": naive_last_week,
+    "profile_7d_median": profile_7d_median,
+}
+DAYS = pd.date_range("2024-01-10", "2024-01-12")
 
 
-def test_day_takes_intervals_ending_after_midnight_through_the_next_midnight(market):
-    day = pd.Timestamp("2024-01-10")
-    intervals = _day(market["rrp"], day).index
-    assert len(intervals) == 48
-    assert intervals[0] == day + pd.Timedelta("30min") and intervals[-1] == day + pd.Timedelta(days=1)
+def test_forecast_keeps_one_row_per_day_and_method(market):
+    forecasts = forecast(market["rrp"], DAYS, NAIVE)
+    assert forecasts.shape == (len(DAYS) * len(NAIVE), 48)
+    assert forecasts.index.names == ["day", "forecaster"]
 
 
-def test_naive_yesterday_is_the_previous_day(market):
-    day = pd.Timestamp("2024-01-10")
-    expected = _day(market["rrp"], day - pd.Timedelta(days=1)).to_numpy()
-    np.testing.assert_array_equal(naive_yesterday(market["rrp"], day, 48), expected)
+def test_days_with_a_missing_half_hour_are_skipped(market):
+    prices = market["rrp"].copy()
+    prices["2024-01-11 12:00"] = np.nan  # the grid keeps the slot; the value is missing
+    assert set(forecast(prices, DAYS, NAIVE).index.get_level_values("day")) == {DAYS[0], DAYS[2]}
 
 
-def test_perfect_foresight_beats_every_forecast(market):
-    days = pd.date_range("2024-01-10", "2024-01-16")
-    summary = summarise(run(market["rrp"], days))
-    assert summary.loc["perfect_foresight", "capture_rate"] == pytest.approx(1)
+def test_perfect_foresight_scores_perfectly_and_earns_the_most(market):
+    results = evaluate(forecast(market["rrp"], DAYS, NAIVE), market["rrp"], Battery())
+    perfect = results[results["forecaster"] == PERFECT]
+    assert (perfect["mae"] == 0).all() and (perfect["rank_corr"] == 1).all() and (perfect["extreme_hits"] == 1).all()
+    summary = summarise(results)
+    assert summary.loc[PERFECT, "capture_rate"] == pytest.approx(1)
     assert (summary["capture_rate"] <= 1 + 1e-9).all()
-    assert set(summary.index) == set(FORECASTERS)
-
-
-def test_incomplete_days_are_skipped(market):
-    prices = market["rrp"].drop(market.index[(market.index > "2024-01-12") & (market.index <= "2024-01-12 06:00")])
-    days = pd.date_range("2024-01-11", "2024-01-13")
-    assert set(run(prices, days, {"yesterday": naive_yesterday})["day"]) == {pd.Timestamp("2024-01-11")}
-
-
-def test_forecast_then_evaluate_keeps_one_row_per_day_and_method(market):
-    days = pd.date_range("2024-01-10", "2024-01-12")
-    forecasts = forecast(market["rrp"], days)
-    assert forecasts.shape == (3 * len(FORECASTERS), 48)
-    results = evaluate(forecasts, market["rrp"])
-    perfect = results[results["forecaster"] == "perfect_foresight"]
-    assert (perfect["mae"] == 0).all() and (perfect["peak_hits"] == 1).all() and (perfect["rank_corr"] == 1).all()
 
 
 def test_saved_forecasts_read_back_exactly(market, tmp_path):
-    forecasts = forecast(market["rrp"], pd.date_range("2024-01-10", "2024-01-11"))
+    forecasts = forecast(market["rrp"], DAYS, NAIVE)
     forecasts.to_csv(tmp_path / "forecasts.csv")
     pd.testing.assert_frame_equal(load_forecasts(tmp_path / "forecasts.csv"), forecasts, check_exact=True)

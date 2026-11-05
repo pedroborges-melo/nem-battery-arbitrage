@@ -13,19 +13,16 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from .forecasters import PERFECT
+
 # +1: higher is better; -1: lower is better.
 SCORES = {"mae": -1, "spread_error": -1, "rank_corr": 1, "trough_hits": 1, "peak_hits": 1, "extreme_hits": 1}
 
 
-def methods_only(results: pd.DataFrame) -> pd.DataFrame:
-    """The forecasting methods' rows (perfect foresight left out), plus the mean of both hit rates."""
-    results = results[results["forecaster"] != "perfect_foresight"]
-    return results.assign(extreme_hits=(results["trough_hits"] + results["peak_hits"]) / 2)
-
-
 def oriented(results: pd.DataFrame) -> pd.DataFrame:
-    """Scores flipped so that higher is always better."""
-    return results.assign(**{s: results[s] * sign for s, sign in SCORES.items()})
+    """The forecasting methods' rows (perfect foresight left out), with scores flipped so higher is better."""
+    methods = results[results["forecaster"] != PERFECT]
+    return methods.assign(**{s: methods[s] * sign for s, sign in SCORES.items()})
 
 
 def daily_agreement(results: pd.DataFrame) -> pd.DataFrame:
@@ -69,7 +66,7 @@ def monthly_winners(results: pd.DataFrame) -> pd.Series:
 
 def agreement(results: pd.DataFrame) -> pd.DataFrame:
     """Both checks for every score, from a backtest's raw results."""
-    scored = oriented(methods_only(results))
+    scored = oriented(results)
     table = daily_agreement(scored).assign(months_top_earner=monthly_winners(scored))
     table.index.name = "score"
     return table

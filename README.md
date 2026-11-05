@@ -115,17 +115,20 @@ Over the whole year, ordering the methods by MAE or by shape gives almost the sa
 
 ## Reproduce
 
+Everything runs through one command, `nem-battery`, in three steps:
+
 ```bash
 uv sync
-for region in SA1 NSW1 VIC1 QLD1; do  # about 50 minutes each; they can run in parallel
-  uv run python scripts/run_backtest.py --region $region --start 2024-01-01 --end 2025-01-01
+for region in SA1 NSW1 VIC1 QLD1; do
+  uv run nem-battery forecast --region $region  # about 50 minutes per region; they can run in parallel
 done
-uv run python scripts/compare_metrics.py
-uv run python scripts/run_sensitivity.py  # battery variants and regions, about 6 minutes
-uv run python scripts/make_figures.py
+uv run nem-battery evaluate  # every scenario, about 6 minutes
+uv run nem-battery figures
 ```
 
-The forecasts are saved to `data/processed/`. To re-run the optimization alone, for example after changing the battery, add `--reuse-forecasts` to `run_backtest.py`; it then takes about a minute.
+The first step is slow because MSTL refits every day, so its forecasts are saved to `data/processed/` and the other two steps reuse them. Changing a battery or adding a scenario in `src/nem_battery/pipeline.py` therefore only needs `evaluate` and `figures` again. The reports land in `reports/`: the day-by-day results for each region, and the capture rates and score agreements for every scenario.
+
+The code is in `src/nem_battery/`, one module per stage: `data` (AEMO files and trading days), `forecasters`, `battery` (the optimization), `metrics` (the daily scores), `backtest`, `agreement` (scores against revenue), `pipeline`, `figures` and `cli`.
 
 The checks that run in CI:
 
