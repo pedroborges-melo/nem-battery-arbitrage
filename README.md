@@ -1,6 +1,8 @@
 # How much is a price forecast worth?
 
-*Battery arbitrage in Australia's National Electricity Market (NEM). Work in progress.*
+[![CI](https://github.com/pedroborges-melo/nem-battery-arbitrage/actions/workflows/ci.yml/badge.svg)](https://github.com/pedroborges-melo/nem-battery-arbitrage/actions/workflows/ci.yml)
+
+*Battery arbitrage in Australia's National Electricity Market (NEM).*
 
 A grid battery earns money by charging when electricity is cheap and discharging when it is expensive, so every decision rests on a price forecast. This project asks whether a forecast that is more accurate by the usual metrics (MAE) actually earns more. It backtests a year of day-ahead scheduling on public AEMO data, optimizing each day with a mixed-integer linear program.
 
