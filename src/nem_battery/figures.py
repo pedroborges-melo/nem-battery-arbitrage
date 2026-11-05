@@ -1,5 +1,6 @@
 """The README's figures, each in a light and a dark version, drawn from the reports.
 
+- cover: the preview image for the article and the repository (light only, 1280 x 640);
 - battery_day: one day's prices and the plan of a battery that knew them in advance;
 - capture_bars: the share of the perfect-foresight revenue each method earned;
 - two_forecasts: a day on which the less accurate forecast earned more;
@@ -113,6 +114,32 @@ def step(values: np.ndarray) -> np.ndarray:
 def hour_axis(ax) -> None:
     ax.set_xlim(0, 24)
     ax.set_xticks(range(0, 25, 6), [f"{h:02d}:00" for h in range(0, 25, 6)])
+
+
+def cover(prices: pd.Series, day: pd.Timestamp, t: dict, path: Path) -> None:
+    """A title over the battery day, stripped to the price line and shaded buy and sell hours.
+
+    1280 x 640 px, GitHub's social-preview size; the margins survive Medium's wider crop.
+    """
+    price = prices_on(prices, day)
+    plan = schedule(price, Battery(), INTERVAL_HOURS)
+    fig = Figure(figsize=(6.4, 3.2))
+    fig.text(0.07, 0.83, "How much is a price forecast worth?", fontsize=17, fontweight="bold", va="center")
+    fig.text(0.07, 0.71, "A year of battery trading in Australia's electricity market", fontsize=10.5,
+             color=t["secondary"], va="center")  # fmt: skip
+    ax = fig.add_axes((0.07, 0.12, 0.86, 0.48))
+    for column, color in (("charge_mw", "blue"), ("discharge_mw", "orange")):
+        for end in STEP_HOURS[1:][plan[column].to_numpy() > 1]:
+            ax.axvspan(end - INTERVAL_HOURS, end, color=t[color], alpha=0.28, linewidth=0)
+    ax.plot(STEP_HOURS, step(price), color=t["ink"], linewidth=2.2, drawstyle="steps-pre")
+    ax.axhline(0, color=t["muted"], linewidth=0.75)
+    low, high = int(price.argmin()), int(price.argmax())
+    ax.text(STEP_HOURS[low], price.min() - 28, "buy cheap", ha="center", va="top", fontsize=10, color=t["ink"])
+    ax.text(STEP_HOURS[high], price.max() + 18, "sell dear", ha="center", va="bottom", fontsize=10, color=t["ink"])
+    ax.set_xlim(0, 24)
+    ax.set_ylim(price.min() - 75, price.max() + 60)
+    ax.axis("off")
+    fig.savefig(path, dpi=200)
 
 
 def battery_day(prices: pd.Series, day: pd.Timestamp, t: dict, path: Path) -> None:
@@ -297,6 +324,8 @@ def draw_figures(year: int) -> None:
     forecasts = load_forecasts(forecasts_path("SA1", year))
     battery, forecast = pd.Timestamp(f"{year}-{BATTERY_DAY}"), pd.Timestamp(f"{year}-{FORECAST_DAY}")
     FIGURES_DIR.mkdir(exist_ok=True)
+    with mpl.rc_context(rc(THEMES["light"])):
+        cover(prices, battery, THEMES["light"], FIGURES_DIR / "cover.png")
     for mode, theme in THEMES.items():
         with mpl.rc_context(rc(theme)):
             battery_day(prices, battery, theme, FIGURES_DIR / f"battery_day-{mode}.png")
