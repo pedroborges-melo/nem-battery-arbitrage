@@ -7,6 +7,7 @@ batteries rebid every 5 minutes, so these numbers understate what they capture.
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -69,6 +70,13 @@ def forecast(
                 rows[(day, name)] = fc
     out = pd.DataFrame.from_dict(rows, orient="index")
     out.index = pd.MultiIndex.from_tuples(out.index, names=["day", "forecaster"])
+    return out
+
+
+def load_forecasts(path: Path) -> pd.DataFrame:
+    """Forecasts saved with `forecast(...).to_csv(path)`, read back exactly."""
+    out = pd.read_csv(path, index_col=["day", "forecaster"], parse_dates=["day"], float_precision="round_trip")
+    out.columns = out.columns.astype(int)
     return out
 
 

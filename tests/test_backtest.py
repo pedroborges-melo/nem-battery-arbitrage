@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from nem_battery.backtest import FORECASTERS, _day, evaluate, forecast, naive_yesterday, run, summarise
+from nem_battery.backtest import FORECASTERS, _day, evaluate, forecast, load_forecasts, naive_yesterday, run, summarise
 
 
 def test_day_takes_intervals_ending_after_midnight_through_the_next_midnight(market):
@@ -41,3 +41,9 @@ def test_forecast_then_evaluate_keeps_one_row_per_day_and_method(market):
     results = evaluate(forecasts, market["rrp"])
     perfect = results[results["forecaster"] == "perfect_foresight"]
     assert (perfect["mae"] == 0).all() and (perfect["peak_hits"] == 1).all() and (perfect["rank_corr"] == 1).all()
+
+
+def test_saved_forecasts_read_back_exactly(market, tmp_path):
+    forecasts = forecast(market["rrp"], pd.date_range("2024-01-10", "2024-01-11"))
+    forecasts.to_csv(tmp_path / "forecasts.csv")
+    pd.testing.assert_frame_equal(load_forecasts(tmp_path / "forecasts.csv"), forecasts, check_exact=True)

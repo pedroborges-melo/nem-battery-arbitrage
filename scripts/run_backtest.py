@@ -14,12 +14,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from nem_battery.backtest import FORECASTERS, evaluate, forecast, summarise
-from nem_battery.data import load_prices
+from nem_battery.backtest import FORECASTERS, evaluate, forecast, load_forecasts, summarise
+from nem_battery.data import PROCESSED_DIR, load_prices
 from nem_battery.forecasters import GradientBoosting, SeasonalForecast
 
 ROOT = Path(__file__).resolve().parents[1]
-REPORTS, PROCESSED = ROOT / "reports", ROOT / "data" / "processed"
+REPORTS = ROOT / "reports"
 # LightGBM's first fit trains on this much history; the lag features need 7 more days.
 TRAINING_HISTORY = pd.DateOffset(years=1, days=8)
 
@@ -35,12 +35,6 @@ def make_forecasts(data: pd.DataFrame, days: pd.DatetimeIndex) -> pd.DataFrame:
     return pd.concat(months)
 
 
-def load_forecasts(path: Path) -> pd.DataFrame:
-    out = pd.read_csv(path, index_col=["day", "forecaster"], parse_dates=["day"], float_precision="round_trip")
-    out.columns = out.columns.astype(int)
-    return out
-
-
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--region", default="SA1")
@@ -50,7 +44,7 @@ def main() -> None:
     args = ap.parse_args()
 
     tag = f"{args.region}_{args.start}_{args.end}"
-    forecasts_path = PROCESSED / f"forecasts_{tag}.csv"
+    forecasts_path = PROCESSED_DIR / f"forecasts_{tag}.csv"
     history_start = (pd.Timestamp(args.start) - TRAINING_HISTORY).strftime("%Y-%m-%d")
     data = load_prices(args.region, history_start, args.end)
     days = pd.date_range(args.start, pd.Timestamp(args.end) - pd.Timedelta(days=1), freq="D")
@@ -59,7 +53,7 @@ def main() -> None:
         forecasts = load_forecasts(forecasts_path)
     else:
         forecasts = make_forecasts(data, days)
-        PROCESSED.mkdir(parents=True, exist_ok=True)
+        PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
         forecasts.to_csv(forecasts_path)
 
     t0 = time.perf_counter()

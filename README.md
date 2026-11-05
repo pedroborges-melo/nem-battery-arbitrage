@@ -71,11 +71,39 @@ Then, for each day, I ranked the five methods by each score and compared that ra
   <img alt="Mean daily rank correlation with revenue for each score. Shape scores 0.51, peak and trough hits 0.43, peak hits 0.35, mean absolute error 0.33, trough hits 0.31 and spread error 0.06." src="figures/score_agreement-light.png">
 </picture>
 
-The shape is the best guide: its ranking agrees with the revenue ranking at 0.51 on an average day, against 0.33 for MAE. Since both are measured on the same days, the gap of 0.19 can be tested directly, and its 95% interval runs from 0.13 to 0.24. Hitting both the peaks and the troughs comes second, at 0.43. Peaks or troughs alone are no better than MAE, and the spread error says almost nothing, because a forecast can get the size of the gap right while putting it at the wrong time.
+The shape is the best guide: its ranking agrees with the revenue ranking at 0.51 on an average day, against 0.33 for MAE. Since both are measured on the same days, the gap of 0.19 can be tested directly, and its 95% interval runs from 0.13 to 0.24. Hitting both the peaks and the troughs comes second here, at 0.43, but that lead does not survive in other regions (see below). Peaks or troughs alone are no better than MAE, and the spread error says almost nothing, because a forecast can get the size of the gap right while putting it at the wrong time.
 
 Month by month, however, no score does better than MAE: the shape, the combined hits and MAE each pick the top earner in six months out of twelve. Twelve months are too few to tell them apart, so the case for the shape rests on the daily comparison.
 
 The practical lesson is that a forecast for a battery should be chosen, and could be trained, on how well it orders the hours of each day, not only on its average error.
+
+## Other batteries and regions
+
+To check that these results are not a quirk of one battery or one market, I re-ran the backtest for a 1-hour and a 4-hour battery, without a wear cost and with a higher one, and for the base battery in New South Wales, Victoria and Queensland.
+
+| Scenario | Perfect foresight (AUD m) | LightGBM | 7-day median | Best naive | MSTL | Shape's lead over MAE |
+|---|---|---|---|---|---|---|
+| South Australia (base) | 33.5 | 47% | 44% | 33% | 28% | 0.19 |
+| SA, 1-hour battery | 22.4 | 37% | 32% | 21% | 14% | 0.11 |
+| SA, 4-hour battery | 45.4 | 56% | 57% | 48% | 50% | 0.24 |
+| SA, no wear cost | 35.4 | 45% | 40% | 33% | 30% | 0.13 |
+| SA, wear cost AUD 30/MWh | 30.9 | 43% | 38% | 31% | 29% | 0.17 |
+| New South Wales | 38.4 | 62% | 55% | 51% | 41% | 0.12 |
+| Victoria | 21.1 | 52% | 45% | 34% | 40% | 0.15 |
+| Queensland | 30.8 | 83% | 78% | 70% | 60% | 0.21 |
+
+The percentages are capture rates. SA is South Australia, and the base battery is 2 hours long with a wear cost of AUD 10/MWh.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="figures/sensitivity-dark.png">
+  <img alt="The shape's lead over MAE in daily agreement with revenue, with 95% intervals, for eight scenarios. Every lead is positive and every interval stays above zero, from 0.11 for a 1-hour battery to 0.24 for a 4-hour battery." src="figures/sensitivity-light.png">
+</picture>
+
+The main result holds everywhere. In every scenario the shape ranks the methods' daily revenue better than MAE does, and every interval stays above zero. Moreover, the lead grows with the battery's length, from 0.11 for one hour to 0.24 for four, because a short battery only needs the single dearest moment, while a long one rides the whole daily curve. The combined peak and trough hits, on the other hand, beat MAE in some scenarios and not in others, so I do not rely on them.
+
+The top of the ranking is also stable. LightGBM earns the most everywhere except with the 4-hour battery, where the 7-day median edges it out by one point. How much of the possible revenue they capture, however, depends on the market: in Queensland, where prices are the easiest to forecast, even the naive methods capture about 70%, while in South Australia the best method captures less than half.
+
+Over the whole year, ordering the methods by MAE or by shape gives almost the same answer, and both get the top two right in every region. Both also miss in the same place: they rank MSTL third, yet it earns the least in three regions out of four. MSTL discharges more energy than perfect foresight does in every region, which suggests its forecasts carry small wiggles that the battery trades on and loses. Neither score captures that kind of over-trading, so it is a natural next measure to add.
 
 ## Limitations
 
@@ -83,14 +111,17 @@ The practical lesson is that a forecast for a battery should be chosen, and coul
 - **No ancillary services:** frequency-control (FCAS) revenue is excluded.
 - **Price taker:** the battery does not move the price.
 - **One cycle a day in the scores:** peak and trough hits look at the four dearest and cheapest half-hours, which is one full cycle; on some days the optimizer cycles twice.
-- **One region and one year:** all results are for South Australia in 2024.
+- **One year:** all results are for 2024. Tasmania, the smallest region, is left out.
 
 ## Reproduce
 
 ```bash
 uv sync
-uv run python scripts/run_backtest.py --region SA1 --start 2024-01-01 --end 2025-01-01  # about 50 minutes
+for region in SA1 NSW1 VIC1 QLD1; do  # about 50 minutes each; they can run in parallel
+  uv run python scripts/run_backtest.py --region $region --start 2024-01-01 --end 2025-01-01
+done
 uv run python scripts/compare_metrics.py
+uv run python scripts/run_sensitivity.py  # battery variants and regions, about 6 minutes
 uv run python scripts/make_figures.py
 ```
 

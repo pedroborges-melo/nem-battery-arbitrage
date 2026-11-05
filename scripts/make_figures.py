@@ -1,9 +1,11 @@
 """The README's figures, each in a light and a dark version.
 
 - capture_vs_mae: capture rate vs forecast error, one dot per method and month;
-- score_agreement: how well each forecast score ranks the methods' daily revenue.
+- score_agreement: how well each forecast score ranks the methods' daily revenue;
+- sensitivity: the shape's lead over MAE for other batteries and regions.
 
-Reads the reports written by run_backtest.py and compare_metrics.py, so run those first.
+Reads the reports written by run_backtest.py, compare_metrics.py and run_sensitivity.py,
+so run those first.
 Writes PNGs to figures/.
 
 Usage: uv run python scripts/make_figures.py --region SA1 --start 2024-01-01 --end 2025-01-01
@@ -24,7 +26,9 @@ from matplotlib.ticker import FixedLocator, PercentFormatter  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORTS, FIGURES = ROOT / "reports", ROOT / "figures"
-SOURCE = "Source: AEMO 5-minute price and demand data, averaged to half-hours. 100 MW / 200 MWh battery."
+SOURCE = "Source: AEMO 5-minute price and demand data, averaged to half-hours."
+BASE_NOTE = f"{SOURCE} 100 MW / 200 MWh battery."
+SENSITIVITY_NOTE = "Source: AEMO price data. SA: South Australia. 100 MW batteries; base: 2 hours, AUD 10/MWh wear."
 
 # Validated pair (blue, orange), a recessive grey for the other methods, and chart ink.
 THEMES = {
@@ -73,13 +77,14 @@ def rc(t: dict) -> dict:
     }  # fmt: skip
 
 
-def frame(t: dict, title: str, subtitle: str, height: float, left: float = 0.09, top: float = 0.80):
+def frame(t: dict, title: str, subtitle: str, height: float, left: float = 0.09, top: float = 0.80,
+          note: str = BASE_NOTE):  # fmt: skip
     """A figure with its title, subtitle and source note placed; returns (fig, ax)."""
     fig, ax = plt.subplots(figsize=(8, height))
     fig.subplots_adjust(left=left, right=0.97, top=top, bottom=0.85 / height)
     fig.text(0.09, 1 - 0.22 / height, title, fontsize=12.5, fontweight="bold", va="top")
     fig.text(0.09, 1 - 0.47 / height, subtitle, fontsize=9.5, color=t["secondary"], va="top")
-    fig.text(0.09, 0.12 / height, SOURCE, fontsize=8, color=t["muted"])
+    fig.text(0.09, 0.12 / height, note, fontsize=8, color=t["muted"])
     return fig, ax
 
 
@@ -141,6 +146,30 @@ def score_agreement(table: pd.DataFrame, t: dict, path: Path) -> None:
     plt.close(fig)
 
 
+def sensitivity(table: pd.DataFrame, t: dict, path: Path) -> None:
+    """The shape's lead over MAE in each scenario, top to bottom in the scenarios' order."""
+    gaps = table[table["score"] == "rank_corr"].iloc[::-1]
+    fig, ax = frame(t, "The shape beats the error for every battery and region",
+                    "How much better the shape ranks the methods' daily revenue than MAE does, 2024",
+                    height=4.6, left=0.33, top=0.80,
+                    note=SENSITIVITY_NOTE)  # fmt: skip
+    y = list(range(len(gaps)))
+    ax.errorbar(gaps["gap_to_mae"], y, xerr=gaps["gap_ci95"], fmt="none", ecolor=t["muted"], elinewidth=1.5,
+                capsize=0, zorder=2)  # fmt: skip
+    ax.plot(gaps["gap_to_mae"], y, "o", color=t["blue"], markersize=MARKER, markeredgecolor=t["surface"],
+            markeredgewidth=1.5, linestyle="none", zorder=3)  # fmt: skip
+    ax.axvline(0, color=t["muted"], linewidth=0.75)
+    ax.text(0.003, len(y) - 0.4, "MAE", fontsize=8.5, color=t["muted"], va="bottom")
+    ax.set_yticks(y, gaps["scenario"])
+    ax.set_ylim(-0.6, len(y) - 0.2)
+    ax.tick_params(axis="y", colors=t["secondary"], labelsize=9.5)
+    ax.grid(axis="y", visible=False)
+    ax.set_xlim(-0.05, 0.35)
+    ax.set_xlabel("Shape's daily agreement with revenue minus MAE's (bars: 95% interval)")
+    fig.savefig(path, dpi=200)
+    plt.close(fig)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--region", default="SA1")
@@ -151,11 +180,13 @@ def main() -> None:
     tag = f"{args.region}_{args.start}_{args.end}"
     points = monthly(pd.read_csv(REPORTS / f"backtest_{tag}.csv", parse_dates=["day"]))
     agreement = pd.read_csv(REPORTS / f"score_agreement_{tag}.csv", index_col="score")
+    scenarios = pd.read_csv(REPORTS / f"sensitivity_agreement_{args.start}_{args.end}.csv")
     FIGURES.mkdir(exist_ok=True)
     for mode, theme in THEMES.items():
         with plt.rc_context(rc(theme)):
             capture_vs_mae(points, theme, FIGURES / f"capture_vs_mae-{mode}.png")
             score_agreement(agreement, theme, FIGURES / f"score_agreement-{mode}.png")
+            sensitivity(scenarios, theme, FIGURES / f"sensitivity-{mode}.png")
 
 
 if __name__ == "__main__":

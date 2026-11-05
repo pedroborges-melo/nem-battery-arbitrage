@@ -14,6 +14,7 @@ import requests
 AEMO_URL = "https://aemo.com.au/aemo/data/nem/priceanddemand/PRICE_AND_DEMAND_{yyyymm}_{region}.csv"
 REGIONS = ("NSW1", "QLD1", "VIC1", "SA1", "TAS1")
 RAW_DIR = Path(__file__).resolve().parents[2] / "data" / "raw"
+PROCESSED_DIR = RAW_DIR.parent / "processed"
 
 
 def download_month(region: str, year: int, month: int, raw_dir: Path = RAW_DIR) -> Path:
